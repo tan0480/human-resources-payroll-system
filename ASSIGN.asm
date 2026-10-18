@@ -149,6 +149,346 @@ TITLE   Assignment 	Human Resources Payroll System
 ; --------------------------------------------------------------------------------------
 .CODE
 	MAIN PROC FAR
+
+	; ---------------- Initialization ----------------
+	; Load data segment into DS register and display welcome messages.
+	MOV	AX, @DATA
+	MOV	DS, AX
+
+	MOV 	AH,09H
+    	LEA 	DX,COIN_ICON
+    	INT 	21H
+
+	MOV	AH, 09H
+	LEA	DX, MSG_WELCOME
+	INT	21H
+
+	MOV	AH, 09H
+	LEA	DX, MSG_LOGIN
+	INT	21H
+
+; ---------------- Login Section ----------------
+; Prompt for HR ID, verify against stored CORRECT_HR_ID.
+LOGIN:
+	MOV	AH, 09H
+	LEA	DX, MSG_HR_ID
+	INT	21H
+
+	MOV	AH, 0AH
+	LEA	DX, HR_ID_INPUT
+	INT	21H
+
+	.386                               ; Enable 80386+ instructions (for MOVZX)
+	MOVZX	CX, HR_ID_ACTUAL            ; Load actual length entered
+	CMP	CX, 7                        ; HR ID must be exactly 7 characters
+	JNE	WRONG_HR_ID
+
+	MOV	BX, 0
+	MOV	SI, 0
+
+; Compare HR_ID_BUFFER with CORRECT_HR_ID, character by character
+CHECKING_HR_ID:
+	MOV	AL, HR_ID_BUFFER[BX]
+	MOV	AH, CORRECT_HR_ID[SI]
+	CMP	AL, AH
+	JNE	WRONG_HR_ID
+	
+	INC	BX
+	INC	SI
+	LOOP	CHECKING_HR_ID
+
+	JMP	RIGHT_HR_ID
+
+; ---------------- Invalid HR ID ----------------
+WRONG_HR_ID:
+	MOV	AH, 09H
+	LEA	DX, MSG_HR_ID_FAILED
+	INT	21H
+	JMP	LOGIN
+
+; ---------------- Password Input ----------------
+; If HR ID matches, ask for password and validate.
+RIGHT_HR_ID:
+	MOV	AH, 09H
+	LEA	DX, MSG_PASSWORD
+	INT	21H
+
+	MOV	AH, 0AH
+	LEA	DX, PASSWORD_INPUT
+	INT	21H
+
+	MOVZX	CX, PASS_ACTUAL
+	CMP	CX, 4                       ; Password must be exactly 4 chars
+	JNE	WRONG_PASS
+
+	MOV	BX, 0
+	MOV	SI, 0
+
+; Compare PASS_BUFFER with CORRECT_PASSWORD
+CHECKING_PASSWORD:
+	MOV	AL, PASS_BUFFER[BX]
+	MOV	AH, CORRECT_PASSWORD[SI]
+	CMP	AL, AH
+	JNE	WRONG_PASS
+	
+	INC	BX
+	INC	SI
+	LOOP	CHECKING_PASSWORD
+
+	JMP	RIGHT_PASS
+
+; ---------------- Invalid Password ----------------
+WRONG_PASS:
+	MOV	AH, 09H
+	LEA	DX, MSG_LOGIN_FAILED
+	INT	21H
+	JMP	RIGHT_HR_ID
+
+; ---------------- Successful Login ----------------
+RIGHT_PASS:
+	MOV	AH, 09H
+	LEA	DX, MSG_LOGIN_SUCCESS
+	INT	21H
+
+; ---------------- Main Menu ----------------
+; Show menu options and process user choice.
+START_MENU:
+	MOV	AH, 09H
+	LEA	DX, MSG1
+	INT	21H
+
+	MOV	AH, 09H
+	LEA	DX, MSG2
+	INT	21H
+
+	MOV	AH, 01H
+	INT	21H
+	MOV	OPTION1, AL
+
+; ---------------- Menu Routing ----------------
+; 1 = Gross Salary
+	CMP	OPTION1, '1'
+	JNE	NOT_1
+	JMP	GROSS
+
+NOT_1:
+; 2 = Overtime
+	CMP	OPTION1, '2'
+	JNE	NOT_2
+	JMP	OT
+
+NOT_2:
+; 3 = Net Salary
+	CMP	OPTION1, '3'
+	JNE	NOT_3
+	JMP	NET
+
+NOT_3:
+; 4 = Exit program
+	CMP	OPTION1, '4'
+	JNE	INVALID_CHOICE
+	JMP	EXIT_PROGRAM
+
+; ---------------- Invalid Menu Option ----------------
+INVALID_CHOICE:
+	MOV	AH, 09H
+	LEA	DX, MSG_INVALID2
+	INT	21H
+	JMP	START_MENU
+
+; ---------------- Gross Salary Menu Display ----------------
+GROSS:  
+	MOV	AH,09H
+	LEA	DX,MSG3             ; Print separator line
+	INT	21H
+
+	MOV	AH,09H
+	LEA	DX,MSG_GROSS1       ; Print "Gross Salary" title/message
+	INT	21H
+
+	MOV	AH,09H
+	LEA	DX,MSG3             ; Print separator line
+	INT	21H
+
+; ---------------- Staff ID Input ----------------
+STAFF_ID_INPUT:
+	MOV	AH, 09H
+	LEA	DX, MSG_ID          ; Prompt: Enter Staff ID
+	INT	21H
+
+	MOV	AH, 0AH
+	LEA	DX, ID_INPUT        ; Read Staff ID input string
+	INT	21H
+
+; ---------------- Staff ID Validation ----------------
+VALIDATION_ID:
+	CMP	ACTUAL, 0           ; If input length = 0 → invalid
+	JE	INVALID_ID_MSG
+
+	MOV	AL, SPACE[0]        ; Get first character of ID
+
+	; Convert lowercase → uppercase if needed
+	CMP	AL, 'a'
+	JL	CHECK_UPPERCASE
+	CMP	AL, 'z'
+	JG	CHECK_UPPERCASE
+	SUB	AL, 32              ; Convert 'a'-'z' → 'A'-'Z'
+
+; ---------------- Position Checking ----------------
+CHECK_UPPERCASE:
+	CMP	AL, 'I'
+	JE	SET_INTERN
+
+	CMP	AL, 'T'
+	JE	SET_TECHNICIAN
+
+	CMP	AL, 'E'
+	JE	SET_EXECUTIVE
+
+	CMP	AL, 'M'
+	JE	SET_MANAGER
+
+	; If none matched → invalid ID
+	JMP	INVALID_ID_MSG
+
+; ---------------- Invalid ID Handling ----------------
+INVALID_ID_MSG:
+	MOV	AH, 09H
+	LEA	DX, MSG_INVALID_ID  ; Print error: Invalid Staff ID
+	INT	21H
+	JMP	STAFF_ID_INPUT       ; Retry
+
+; ---------------- Repeat/Exit Prompt ----------------
+REPEAT1:
+	MOV	AH, 09H
+	LEA	DX, MSG_REPEAT      ; Ask: Continue? (Y/N)
+	INT	21H
+
+	MOV	AH, 01H
+	INT	21H
+	MOV	OPTION2, AL
+
+	CMP	OPTION2, 'Y'
+	JNE	GROSS_NOT_Y1
+	MOV	AH, 09H
+	LEA	DX, MSG10           ; Print message
+	INT	21H
+	JMP	START_MENU
+
+GROSS_NOT_Y1:
+	CMP	OPTION2, 'y'
+	JNE	GROSS_NOT_Y2
+	MOV	AH, 09H
+	LEA	DX, MSG10
+	INT	21H
+	JMP	START_MENU
+
+GROSS_NOT_Y2:
+	CMP	OPTION2, 'N'
+	JNE	GROSS_NOT_N1
+	JMP	EXIT_PROGRAM
+
+GROSS_NOT_N1:
+	CMP	OPTION2, 'n'
+	JNE	INVALID_GROSS
+	JMP	EXIT_PROGRAM
+
+INVALID_GROSS:
+	MOV	AH, 09H
+	LEA	DX, MSG_INVALID1    ; Invalid input → retry
+	INT	21H
+	JMP	REPEAT1
+
+; ---------------- Repeat/Exit Prompt ----------------
+REPEAT2:
+	MOV	AH, 09H
+	LEA	DX, MSG_REPEAT     ; Ask user: Continue or Exit?
+	INT	21H
+
+	MOV	AH, 01H
+	INT	21H
+	MOV	OPTION2, AL
+
+	CMP	OPTION2, 'Y'       ; If 'Y' → back to start menu
+	JNE	OT_NOT_Y1
+	JMP	START_MENU
+
+OT_NOT_Y1:
+	CMP	OPTION2, 'y'
+	JNE	OT_NOT_Y2
+	JMP	START_MENU
+
+OT_NOT_Y2:
+	CMP	OPTION2, 'N'       ; If 'N' → exit program
+	JNE	OT_NOT_N2
+	JMP	EXIT_PROGRAM
+
+OT_NOT_N2:
+	CMP	OPTION2, 'n'
+	JNE	INVALID_OT
+	JMP	EXIT_PROGRAM
+
+; Invalid input at repeat prompt
+INVALID_OT:
+	MOV	AH, 09H
+	LEA	DX, MSG_INVALID1
+	INT	21H
+	JMP	REPEAT2
+
+
+REPEAT3:
+	; Display repeat prompt (ask user to continue Y/N)
+    	MOV 	AH, 09H
+    	LEA 	DX, MSG_REPEAT
+    	INT 	21H
+
+    	; Read single key from user input
+   	MOV 	AH, 01H
+    	INT 	21H
+    	MOV 	OPTION2, AL
+	
+    	; If input = 'Y', return to main menu
+    	CMP 	OPTION2, 'Y'
+    	JNE 	NET_NOT_Y1
+    	JMP 	START_MENU
+
+NET_NOT_Y1:
+    	; If input = 'y', return to main menu
+    	CMP 	OPTION2, 'y'
+    	JNE 	NET_NOT_Y2
+    	JMP 	START_MENU
+
+NET_NOT_Y2:
+    	; If input = 'N', exit program
+    	CMP 	OPTION2, 'N'
+    	JNE 	NET_NOT_N3
+    	JMP 	EXIT_PROGRAM
+
+NET_NOT_N3:
+    	; If input = 'n', exit program
+    	CMP 	OPTION2, 'n'
+    	JNE 	INVALID_NET
+    	JMP 	EXIT_PROGRAM
+
+INVALID_NET:
+    	; Handle invalid input → show error and ask again
+    	MOV 	AH, 09H
+    	LEA 	DX, MSG_INVALID1
+    	INT 	21H
+    	JMP 	REPEAT3
+
+
+; ---------------- EXIT ----------------
+EXIT_PROGRAM:
+    	; Display exit message
+    	MOV 	AH, 09H
+    	LEA 	DX, MSG_EXIT
+    	INT 	21H
+
+    	; Exit program and return to DOS
+    	MOV 	AX, 4C00H
+    	INT 	21H
+
 	MAIN ENDP
 END MAIN
 
