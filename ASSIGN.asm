@@ -953,6 +953,471 @@ INVALID_OT:
 	INT	21H
 	JMP	REPEAT2
 
+; ---------------- NET SECTION ----------------
+NET:
+
+; ---------------- Net Salary Validation ----------------
+NET_VALID:
+	MOV	AX, NET_SALARY
+	CMP	AX, 0
+	JE	NO_NET      	; Cannot calculate if wages = 0
+
+	JMP	NET_LABEL       	; Proceed if wages valid
+
+NO_NET:
+	MOV	AH, 09H
+	LEA	DX, MSG_INVALID_NET
+	INT	21H
+	JMP	START_MENU         ; Return to main menu
+
+	; Print MSG3 (likely a header line for NET report)
+NET_LABEL:
+	MOV	AH, 09H
+	LEA	DX, MSG3
+	INT	21H
+
+	; Print MSG4 (a sub-header / description line)
+	MOV	AH, 09H
+	LEA	DX, MSG4
+	INT	21H
+
+	; Prepare to print Employee ID
+	XOR	CX, CX
+	MOV	CL, ACTUAL		; number of characters in SPACE (user ID buffer)
+	MOV	SI, 0			; start index = 0
+
+; ------- LOOP: Print Employee ID (capitalize 1st letter if lowercase) -------
+OUTPUT_ID_LOOP:
+	MOV	DL, SPACE[SI]		; load current character
+
+	CMP	SI, 0			; is this the first character?
+	JNE	OUTPUT_CHAR		
+
+	; If first char, check if lowercase → convert to uppercase
+	CMP	DL, 'a'
+	JL	OUTPUT_CHAR
+	CMP	DL, 'z'
+	JG	OUTPUT_CHAR
+	SUB	DL, 32			; convert lowercase to uppercase
+
+OUTPUT_CHAR:
+	MOV	AH, 02H			; DOS print char function
+	INT	21H
+	INC	SI			; next character
+	LOOP	OUTPUT_ID_LOOP		; repeat for CX chars
+
+	; Print MSG3 again (label after ID)
+	MOV	AH, 09H
+	LEA	DX, MSG3
+	INT	21H
+
+	; Print "Position" label
+	MOV	AH, 09H
+	LEA	DX, MSG_POSITION
+	INT	21H
+
+	; Print Position string (from POSITION buffer)
+	MOV	AH, 09H
+	MOV	DX, POSITION
+	INT	21H
+
+	; Print "Gross Salary" label
+	MOV	AH, 09H
+	LEA	DX, MSG_GROSS2
+	INT	21H
+
+; ------- CONVERT GROSS SALARY to ASCII -------
+	MOV	AX, GROSS_SALARY	; load salary
+	MOV	SI, 4			; start from rightmost position
+	MOV	BX, 10			; divisor = 10
+
+CONVERTGROSS:
+	XOR	DX, DX			; clear remainder
+	DIV	BX			; AX ÷ 10 → Quotient in AX, Remainder in DX
+	ADD	DL, 30H			; remainder → ASCII digit
+	MOV	RESULT_GROSS[SI], DL
+	DEC	SI
+	TEST	AX, AX			; if quotient > 0, continue
+	JNZ	CONVERTGROSS
+
+; ------- PRINT GROSS SALARY -------
+	MOV	SI, 0
+	MOV	CX, 5
+
+PRINTGROSS:
+	MOV	DL, RESULT_GROSS[SI]
+	CMP	DL, '$'			; skip empty placeholder
+	JE	SKIPDIGIT1
+	MOV	AH, 02H
+	INT	21H
+
+SKIPDIGIT1:
+	INC	SI
+	LOOP	PRINTGROSS
+
+; ------- OVERTIME TOTAL -------
+	MOV	AH,09H
+	LEA	DX,MSG_OT2
+	INT	21H
+
+	; Same convert → print pattern for OVERTIME_TOTAL
+	MOV	AX, OVERTIME_TOTAL
+	MOV	SI, 4
+	MOV	BX, 10
+
+CONVERTOT:
+	XOR	DX, DX
+	DIV	BX
+	ADD	DL, 30H
+	MOV	RESULT_OT[SI], DL
+	DEC	SI
+	TEST	AX, AX
+	JNZ	CONVERTOT
+
+	MOV	SI, 0
+	MOV	CX, 5
+
+PRINTOT:
+	MOV	DL, RESULT_OT[SI]
+	CMP	DL, '$'
+	JE	SKIPDIGIT2
+	MOV	AH, 02H
+	INT	21H
+
+SKIPDIGIT2:
+	INC	SI
+	LOOP	PRINTOT
+
+; ------- EPF (Employer Provident Fund) -------
+	MOV	AH,09H
+	LEA	DX,MSG_EPF
+	INT	21H
+
+	; Convert EPF → ASCII
+	MOV	AX, EPF
+	MOV	SI, 4
+	MOV	BX, 10
+
+CONVERTEPF:
+	XOR	DX, DX
+	DIV	BX
+	ADD	DL, 30H
+	MOV	RESULT_EPF[SI], DL
+	DEC	SI
+	TEST	AX, AX
+	JNZ	CONVERTEPF
+
+	MOV	SI, 0
+	MOV	CX, 5
+
+PRINTEPF:
+	MOV	DL, RESULT_EPF[SI]
+	CMP	DL,'$'
+	JE	SKIPDIGIT3
+	MOV	AH,02H
+	INT	21H
+
+SKIPDIGIT3:
+	INC	SI
+	LOOP	PRINTEPF
+
+	; Print decimal point for EPF_R (rate)
+	MOV	AH,09H
+	LEA	DX,MSG_DOT
+	INT	21H
+
+	; If rate < 10, print as "0x"
+	MOV	AX, EPF_R
+	CMP	AX, 10
+	JGE	PRINT_EPF_R_TWO
+
+	MOV	DL, '0'
+	MOV	AH, 02H
+	INT	21H
+
+	ADD	AL, 30H
+	MOV	DL, AL
+	MOV	AH, 02H
+	INT	21H
+	JMP	PRINT_SOCSO_LABEL
+
+; Otherwise convert normally
+PRINT_EPF_R_TWO:
+	MOV	SI, 1
+	MOV	BX, 10
+
+CONVERTEPF_R:
+	XOR	DX, DX
+	DIV	BX
+	ADD	DL, 30H
+	MOV	RESULT_EPF_R[SI], DL
+	DEC	SI
+	TEST	AX, AX
+	JNZ	CONVERTEPF_R
+
+	MOV	SI, 0
+	MOV	CX, 2
+
+PRINTEPF_R:
+	MOV	DL, RESULT_EPF_R[SI]
+	CMP	DL,'$'
+	JE	SKIPDIGIT4
+	MOV	AH,02H
+	INT	21H
+
+SKIPDIGIT4:
+	INC	SI
+	LOOP	PRINTEPF_R
+
+; ------- SOCSO (Social Security) -------
+PRINT_SOCSO_LABEL:
+	MOV	AH,09H
+	LEA	DX,MSG_SOCSO
+	INT	21H
+
+	; Convert SOCSO → ASCII
+	MOV	AX, SOCSO
+	MOV	SI, 4
+	MOV	BX, 10
+
+CONVERTSOCSO:
+	XOR	DX, DX
+	DIV	BX
+	ADD	DL, 30H
+	MOV	RESULT_SOCSO[SI], DL
+	DEC	SI
+	TEST	AX, AX
+	JNZ	CONVERTSOCSO
+
+	MOV	SI, 0
+	MOV	CX, 5
+
+PRINTSOCSO:
+	MOV	DL, RESULT_SOCSO[SI]
+	CMP	DL,'$'
+	JE	SKIPDIGIT5
+	MOV	AH,02H
+	INT	21H
+
+SKIPDIGIT5:
+	INC	SI
+	LOOP	PRINTSOCSO
+
+	; Print decimal for SOCSO_R
+	MOV	AH,09H
+	LEA	DX,MSG_DOT
+	INT	21H
+
+	; If < 10, print "0x"
+	MOV	AX, SOCSO_R
+	CMP	AX, 10
+	JGE	PRINT_SOCSO_R_TWO
+
+	MOV	DL, '0'
+	MOV	AH, 02H
+	INT	21H
+
+	ADD	AL, 30H
+	MOV	DL, AL
+	MOV	AH, 02H
+	INT	21H
+	JMP	PRINT_DEDUCTION_LABEL
+
+; Otherwise convert normally
+PRINT_SOCSO_R_TWO:
+	MOV	SI, 1
+	MOV	BX, 10
+
+CONVERTSOCSO_R:
+	XOR	DX, DX
+	DIV	BX
+	ADD	DL, 30H
+	MOV	RESULT_SOCSO_R[SI], DL
+	DEC	SI
+	TEST	AX, AX
+	JNZ	CONVERTSOCSO_R
+
+	MOV	SI, 0
+	MOV	CX, 2
+
+PRINTSOCSO_R:
+	MOV	DL, RESULT_SOCSO_R[SI]
+	CMP	DL,'$'
+	JE	SKIPDIGIT6
+	MOV	AH,02H
+	INT	21H
+
+SKIPDIGIT6:
+	INC	SI
+	LOOP	PRINTSOCSO_R
+
+; ------- DEDUCTION -------
+PRINT_DEDUCTION_LABEL:
+	MOV	AH,09H
+	LEA	DX,MSG_DEDUCTION
+	INT	21H
+
+	; Convert DEDUCTION → ASCII
+	MOV	AX, DEDUCTION
+	MOV	SI, 4
+	MOV	BX, 10
+
+CONVERTDEDUCTION:
+	XOR	DX, DX
+	DIV	BX
+	ADD	DL, 30H
+	MOV	RESULT_DEDUCTION[SI], DL
+	DEC	SI
+	TEST	AX, AX
+	JNZ	CONVERTDEDUCTION
+
+	MOV	SI, 0
+	MOV	CX, 5
+
+PRINTDEDUCTION:
+	MOV	DL, RESULT_DEDUCTION[SI]
+	CMP	DL,'$'
+	JE	SKIPDIGIT7
+	MOV	AH,02H
+	INT	21H
+
+SKIPDIGIT7:
+	INC	SI
+	LOOP	PRINTDEDUCTION
+
+	; Print decimal for DEDUCTION_R
+	MOV	AH,09H
+	LEA	DX,MSG_DOT
+	INT	21H
+
+	MOV	AX, DEDUCTION_R
+	CMP	AX, 10
+	JGE	PRINT_DEDUCTION_R_TWO
+
+	MOV	DL, '0'
+	MOV	AH, 02H
+	INT	21H
+
+	ADD	AL, 30H
+	MOV	DL, AL
+	MOV	AH, 02H
+	INT	21H
+	JMP	PRINT_NET_LABEL
+
+; Otherwise convert normally
+PRINT_DEDUCTION_R_TWO:
+	MOV	SI, 1
+	MOV	BX, 10
+
+CONVERTDEDUCTION_R:
+	XOR	DX, DX
+	DIV	BX
+	ADD	DL, 30H
+	MOV	RESULT_DEDUCTION_R[SI], DL
+	DEC	SI
+	TEST	AX, AX
+	JNZ	CONVERTDEDUCTION_R
+
+	MOV	SI, 0
+	MOV	CX, 2
+
+PRINTDEDUCTION_R:
+	MOV	DL, RESULT_DEDUCTION_R[SI]
+	CMP	DL,'$'
+	JE	SKIPDIGIT8
+	MOV	AH,02H
+	INT	21H
+
+SKIPDIGIT8:
+	INC	SI
+	LOOP	PRINTDEDUCTION_R
+
+; ------- NET SALARY -------
+PRINT_NET_LABEL:	
+	MOV	AH,09H
+	LEA	DX,MSG_NEXTLINE
+	INT	21H
+
+	MOV	AH,09H
+	LEA	DX,MSG_NET
+	INT	21H
+
+	; Convert NET_SALARY → ASCII
+	MOV	AX, NET_SALARY
+	MOV	SI, 4
+	MOV	BX, 10
+
+CONVERTNET:
+	XOR	DX, DX
+	DIV	BX
+	ADD	DL, 30H
+	MOV	RESULT_NET[SI], DL
+	DEC	SI
+	TEST	AX, AX
+	JNZ	CONVERTNET
+
+	MOV	SI, 0
+	MOV	CX, 5
+
+PRINTNET:
+	MOV	DL, RESULT_NET[SI]
+	CMP	DL,'$'
+	JE	SKIPDIGIT9
+	MOV	AH,02H
+	INT	21H
+
+SKIPDIGIT9:
+	INC	SI
+	LOOP	PRINTNET
+
+	; Print decimal for NET_SALARY_R
+	MOV	AH,09H
+	LEA	DX,MSG_DOT
+	INT	21H
+
+	MOV	AX, NET_SALARY_R
+	CMP	AX, 10
+	JGE	PRINT_NET_R_TWO
+
+	MOV	DL, '0'
+	MOV	AH, 02H
+	INT	21H
+
+	ADD	AL, 30H
+	MOV	DL, AL
+	MOV	AH, 02H
+	INT	21H
+	JMP	REPEAT3
+
+; Otherwise convert normally
+PRINT_NET_R_TWO:
+	MOV	SI, 1
+	MOV	BX, 10
+
+CONVERTNET_R:
+	XOR	DX, DX
+	DIV	BX
+	ADD	DL, 30H
+	MOV	RESULT_NET_R[SI], DL
+	DEC	SI
+	TEST	AX, AX
+	JNZ	CONVERTNET_R
+
+	MOV	SI, 0
+	MOV	CX, 2
+
+PRINTNET_R:
+	MOV	DL, RESULT_NET_R[SI]
+	CMP	DL,'$'
+	JE	SKIPDIGIT10
+	MOV	AH,02H
+	INT	21H
+
+SKIPDIGIT10:
+	INC	SI
+	LOOP	PRINTNET_R
+
+	JMP	REPEAT3
 
 REPEAT3:
 	; Display repeat prompt (ask user to continue Y/N)
