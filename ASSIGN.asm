@@ -599,6 +599,91 @@ INVALID_OT_V:
 	INT	21H
 	JMP	OT_VALIDATION
 
+; ---------------- Gross Salary & Deduction Calculation ----------------
+CALCULATION:  
+	; Gross Salary = Basic + Allowance + Commission + Bonus + Overtime
+	XOR	AX, AX
+	MOV	AX, BASIC_SALARY
+	ADD	AX, ALLOWANCE
+	ADD	AX, COMMISSION
+	ADD	AX, BONUS
+	ADD	AX, OVERTIME_TOTAL
+	MOV	GROSS_SALARY, AX
+
+	; EPF = 11% of Gross (store quotient + remainder)
+	XOR	DX, DX
+	XOR	AX, AX
+	MOV	AX, GROSS_SALARY
+	MOV	BX, 11
+	MUL	BX
+	MOV	BX, 100
+	DIV	BX
+	MOV	EPF, AX
+	MOV	EPF_R, DX
+
+	; SOCSO = 0.50% of Gross (store quotient + remainder)
+	XOR	DX, DX
+	XOR	AX, AX
+	MOV	AX, GROSS_SALARY
+	MOV	BX, 50
+	MUL	BX
+	MOV	BX, 10000
+	DIV	BX
+	MOV	SOCSO, AX
+
+	MOV	AX, DX
+	MOV	BX, 100
+	MUL	BX
+	MOV	BX, 10000
+	DIV	BX
+	MOV	SOCSO_R, AX
+
+; ---------------- Total Deductions ----------------
+	MOV	AX, EPF_R
+	ADD	AX, SOCSO_R
+
+	CMP	AX, 100
+	JL	DEDUCTION_CALC
+
+	; If remainders >= 100 → carry to main deduction
+	SUB	AX, 100
+	MOV	DEDUCTION_R, AX
+	MOV	AX, 1
+	ADD	AX, EPF
+	ADD	AX, SOCSO
+	MOV	DEDUCTION, AX
+	JMP	NET_S
+
+DEDUCTION_CALC:
+	MOV	DEDUCTION_R, AX
+	XOR	AX, AX
+	MOV	AX, EPF
+	ADD	AX, SOCSO
+	MOV	DEDUCTION, AX
+
+; ---------------- Net Salary Calculation ----------------
+NET_S:
+	MOV	CX, DEDUCTION_R
+	CMP	CX, 0
+	JE	NO_SEN             ; No remainder → simple calc
+
+	; If remainder exists → adjust net salary by cents
+	MOV	AX, GROSS_SALARY
+	DEC	AX
+	SUB	AX, DEDUCTION
+	MOV	NET_SALARY, AX
+
+	MOV	AX, 100
+	SUB	AX, CX
+	MOV	NET_SALARY_R, AX
+	JMP	REPEAT1
+
+NO_SEN:
+	MOV	AX, GROSS_SALARY
+	SUB	AX, DEDUCTION
+	MOV	NET_SALARY, AX
+	MOV	NET_SALARY_R, 0
+
 ; ---------------- Repeat/Exit Prompt ----------------
 REPEAT1:
 	MOV	AH, 09H
