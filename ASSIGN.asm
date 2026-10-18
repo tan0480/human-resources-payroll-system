@@ -351,12 +351,253 @@ CHECK_UPPERCASE:
 	; If none matched → invalid ID
 	JMP	INVALID_ID_MSG
 
+; ---------------- Set Position and Wages ----------------
+SET_INTERN:
+	MOV	WAGES, 8
+	LEA	BX, INTERN_STR      ; Load position string "Intern"
+	MOV	POSITION, BX
+	JMP	BASIC
+
+SET_TECHNICIAN:
+	MOV	WAGES, 22
+	LEA	BX, TECH_STR
+	MOV	POSITION, BX
+	JMP	BASIC
+
+SET_EXECUTIVE:
+	MOV	WAGES, 28
+	LEA	BX, EXEC_STR
+	MOV	POSITION, BX
+	JMP	BASIC
+
+SET_MANAGER:
+	MOV	WAGES, 75
+	LEA	BX, MANAG_STR
+	MOV	POSITION, BX
+	JMP	BASIC
+
 ; ---------------- Invalid ID Handling ----------------
 INVALID_ID_MSG:
 	MOV	AH, 09H
 	LEA	DX, MSG_INVALID_ID  ; Print error: Invalid Staff ID
 	INT	21H
 	JMP	STAFF_ID_INPUT       ; Retry
+
+; ---------------- Basic Salary Input ----------------
+BASIC:
+	MOV	AH,09H
+	LEA	DX,MSG_NEXTLINE     ; Print newline
+	INT	21H
+
+	MOV	AH,09H
+	LEA	DX,MSG5             ; Prompt: Enter Basic Salary
+	INT	21H 
+
+	MOV	SI, 0
+	MOV	BASIC_SALARY, 0
+	MOV	CX, 6               ; Allow up to 6 digits
+
+; Input loop for Basic Salary
+INPUTLOOP1: 
+	MOV	AH, 01H
+	INT	21H
+
+	CMP	AL, 13              ; If ENTER → move on
+	JE	ALLOW
+
+	CMP	AL, '0'             ; Must be between '0'-'9'
+	JL	INVALID_NUM1
+	CMP	AL, '9'
+	JG	INVALID_NUM1
+
+	SUB	AL, 30H             ; Convert ASCII → number
+	XOR	AH, AH
+	MOV	BX, AX
+
+	MOV	AX, BASIC_SALARY    ; Accumulate into BASIC_SALARY
+	MOV	DX, 10
+	MUL	DX
+	ADD	AX, BX
+	MOV	BASIC_SALARY, AX
+	
+	LOOP	INPUTLOOP1
+	JMP	ALLOW
+
+; Invalid number handling for Basic Salary
+INVALID_NUM1: 
+	MOV	AH,09H
+	LEA	DX,MSG9
+	INT	21H
+	JMP	BASIC
+
+; ---------------- Allowance Input ----------------
+ALLOW:  
+	MOV	AH, 09H
+	LEA	DX, MSG6            ; Prompt: Enter Allowance
+	INT	21H                             
+
+	MOV	ALLOWANCE, 0
+	MOV	CX, 6
+	MOV	SI, 0
+
+INPUTLOOP2: 
+	MOV	AH, 01H
+	INT	21H
+
+	CMP	AL, 13
+	JE	COMMISS
+
+	CMP	AL, '0'
+	JL	INVALID_NUM2
+	CMP	AL, '9'
+	JG	INVALID_NUM2
+
+	SUB	AL, 30H
+	XOR	AH, AH
+	MOV	BX, AX
+
+	MOV	AX, ALLOWANCE
+	MOV	DX, 10
+	MUL	DX
+	ADD	AX, BX
+	MOV	ALLOWANCE, AX
+	
+	LOOP	INPUTLOOP2
+	JMP	COMMISS
+
+INVALID_NUM2: 
+	MOV	AH, 09H
+	LEA	DX, MSG9
+	INT	21H
+	JMP	ALLOW
+
+; ---------------- Commission Input ----------------
+COMMISS: 
+	MOV	AH, 09H
+	LEA	DX, MSG7            ; Prompt: Enter Commission
+	INT	21H                             
+
+	MOV	COMMISSION, 0
+	MOV	CX, 6
+	MOV	SI, 0
+
+INPUTLOOP3: 
+	MOV	AH, 01H
+	INT	21H
+
+	CMP	AL, 13
+	JE	BON
+
+	CMP	AL, '0'
+	JL	INVALID_NUM3
+	CMP	AL, '9'
+	JG	INVALID_NUM3
+
+	SUB	AL, 30H
+	XOR	AH, AH
+	MOV	BX, AX
+
+	MOV	AX, COMMISSION
+	MOV	DX, 10
+	MUL	DX
+	ADD	AX, BX
+	MOV	COMMISSION, AX
+	
+	LOOP	INPUTLOOP3
+	JMP	BON
+
+INVALID_NUM3: 
+	MOV	AH, 09H
+	LEA	DX, MSG9
+	INT	21H
+	JMP	COMMISS
+
+; ---------------- Bonus Input ----------------
+BON:  
+	MOV	AH, 09H
+	LEA	DX, MSG8            ; Prompt: Enter Bonus
+	INT	21H       
+
+	MOV	BONUS, 0
+	MOV	CX, 6
+	MOV	SI, 0
+
+INPUTLOOP4: 
+	MOV	AH, 01H
+	INT	21H
+
+	CMP	AL, 13
+	JE	OT_VALIDATION
+
+	CMP	AL, '0'
+	JL	INVALID_NUM4
+	CMP	AL, '9'
+	JG	INVALID_NUM4
+
+	SUB	AL, 30H
+	XOR	AH, AH
+	MOV	BX, AX
+
+	MOV	AX, BONUS
+	MOV	DX, 10
+	MUL	DX
+	ADD	AX, BX
+	MOV	BONUS, AX
+	
+	LOOP	INPUTLOOP4
+	JMP	OT_VALIDATION
+
+INVALID_NUM4: 
+	MOV	AH, 09H
+	LEA	DX, MSG9
+	INT	21H
+	JMP	BON
+
+; ---------------- Overtime Validation ----------------
+OT_VALIDATION:
+	MOV	AH, 09H
+	LEA	DX, MSG_REPEAT_OT   ; Ask: Any Overtime? (Y/N)
+	INT	21H
+
+	MOV	AH, 01H
+	INT	21H
+	MOV	OPTION3, AL
+
+	; If 'Y' or 'y' → redirect to Overtime section
+	CMP	OPTION3, 'Y'
+	JNE	OT_V_Y1
+	MOV	AH, 09H
+	LEA	DX, MSG_PINPUT_OT
+	INT	21H
+	JMP	START_MENU
+
+OT_V_Y1:
+	CMP	OPTION3, 'y'
+	JNE	OT_V_Y2
+	MOV	AH, 09H
+	LEA	DX, MSG_PINPUT_OT
+	INT	21H
+	JMP	START_MENU
+
+	; If 'N' or 'n' → set OT = 0 and continue calculation
+OT_V_Y2:
+	CMP	OPTION3, 'N'
+	JNE	OT_V_N1
+	MOV OVERTIME_TOTAL,0
+	JMP	CALCULATION
+
+OT_V_N1:
+	CMP	OPTION3, 'n'
+	JNE	INVALID_OT_V
+	MOV OVERTIME_TOTAL,0
+	JMP	CALCULATION
+
+	; Invalid option → retry
+INVALID_OT_V:
+	MOV	AH, 09H
+	LEA	DX, MSG_INVALID_OT
+	INT	21H
+	JMP	OT_VALIDATION
 
 ; ---------------- Repeat/Exit Prompt ----------------
 REPEAT1:
@@ -398,6 +639,198 @@ INVALID_GROSS:
 	LEA	DX, MSG_INVALID1    ; Invalid input → retry
 	INT	21H
 	JMP	REPEAT1
+
+; ---------------- OT Menu Display ----------------
+OT:
+	MOV	AH, 09H
+	LEA	DX, MSG3          ; Print separator line
+	INT	21H
+
+	MOV	AH, 09H
+	LEA	DX, MSG_OT1       ; Print "Overtime" title/message
+	INT	21H
+
+	MOV	AH, 09H
+	LEA	DX, MSG3          ; Print separator line again
+	INT	21H
+
+; ---------------- Weekday OT Input ----------------
+WEEKDAY_INPUT:
+	MOV	AH, 09H
+	LEA	DX, MSG_WEEKDAY   ; Prompt user: Enter weekday OT hours
+	INT	21H
+
+	MOV	WEEKDAY, 0        ; Reset weekday OT accumulator
+	MOV	CX, 4             ; Max 4 digits allowed
+	MOV	SI, 0             ; SI not used, but cleared
+
+; Input loop for weekday OT hours
+INPUTLOOP5:
+	MOV	AH, 01H           ; Read one char from keyboard
+	INT	21H
+
+	CMP	AL, 13            ; If ENTER pressed → done
+	JE	WEEKEND_INPUT
+
+	CMP	AL, '0'           ; Validate: must be >= '0'
+	JL	INVALID_NUM5
+	CMP	AL, '9'           ; Validate: must be <= '9'
+	JG	INVALID_NUM5
+
+	SUB	AL, 30H           ; Convert ASCII → number
+	XOR	AH, AH
+	MOV	BX, AX            ; BX = digit
+
+	MOV	AX, WEEKDAY       ; Accumulate multi-digit number
+	MOV	DX, 10
+	MUL	DX
+	ADD	AX, BX
+	MOV	WEEKDAY, AX
+
+	LOOP	INPUTLOOP5       ; Continue until CX exhausted
+	JMP	WEEKEND_INPUT
+
+; Invalid numeric input for weekday OT
+INVALID_NUM5:
+	MOV	AH, 09H
+	LEA	DX, MSG_INVALID_NUM ; Show error message
+	INT	21H
+	JMP	WEEKDAY_INPUT       ; Retry weekday input
+
+; ---------------- Weekend OT Input ----------------
+WEEKEND_INPUT:
+	MOV	AH, 09H
+	LEA	DX, MSG_WEEKEND   ; Prompt: Enter weekend OT hours
+	INT	21H
+
+	MOV	WEEKEND, 0        ; Reset weekend OT accumulator
+	MOV	CX, 4             ; Max 4 digits allowed
+	MOV	SI, 0
+
+; Input loop for weekend OT hours
+INPUTLOOP6:
+	MOV	AH, 01H
+	INT	21H
+
+	CMP	AL, 13
+	JE	HOLIDAYS_INPUT
+
+	CMP	AL, '0'
+	JL	INVALID_NUM6
+	CMP	AL, '9'
+	JG	INVALID_NUM6
+
+	SUB	AL, 30H
+	XOR	AH, AH
+	MOV	BX, AX
+
+	MOV	AX, WEEKEND
+	MOV	DX, 10
+	MUL	DX
+	ADD	AX, BX
+	MOV	WEEKEND, AX
+
+	LOOP	INPUTLOOP6
+	JMP	HOLIDAYS_INPUT
+
+; Invalid numeric input for weekend OT
+INVALID_NUM6:
+	MOV	AH, 09H
+	LEA	DX, MSG_INVALID_NUM
+	INT	21H
+	JMP	WEEKEND_INPUT
+
+; ---------------- Holidays OT Input ----------------
+HOLIDAYS_INPUT:
+	MOV	AH, 09H
+	LEA	DX, MSG_HOLIDAYS  ; Prompt: Enter holiday OT hours
+	INT	21H
+
+	MOV	HOLIDAYS, 0       ; Reset holidays OT accumulator
+	MOV	CX, 4             ; Max 4 digits allowed
+	MOV	SI, 0
+
+; Input loop for holiday OT hours
+INPUTLOOP7:
+	MOV	AH, 01H
+	INT	21H
+
+	CMP	AL, 13
+	JE	WAGES_VALID
+
+	CMP	AL, '0'
+	JL	INVALID_NUM7
+	CMP	AL, '9'
+	JG	INVALID_NUM7
+
+	SUB	AL, 30H
+	XOR	AH, AH
+	MOV	BX, AX
+
+	MOV	AX, HOLIDAYS
+	MOV	DX, 10
+	MUL	DX
+	ADD	AX, BX
+	MOV	HOLIDAYS, AX
+
+	LOOP	INPUTLOOP7
+	JMP	WAGES_VALID
+
+; Invalid numeric input for holidays OT
+INVALID_NUM7:
+	MOV	AH, 09H
+	LEA	DX, MSG_INVALID_NUM
+	INT	21H
+	JMP	HOLIDAYS_INPUT
+
+; ---------------- Wages Validation ----------------
+WAGES_VALID:
+	MOV	AX, WAGES
+	CMP	AX, 0
+	JE	INVALID_WAGES      ; Cannot calculate if wages = 0
+
+	JMP	CALCULATION2       ; Proceed if wages valid
+
+INVALID_WAGES:
+	MOV	AH, 09H
+	LEA	DX, MSG_INVALID_WAGES
+	INT	21H
+	JMP	START_MENU         ; Return to main menu
+
+; ---------------- Overtime Calculation ----------------
+CALCULATION2:
+	; Weekday OT = WAGES * weekday_hours * 2
+	XOR	AX, AX
+	MOV	AX, WAGES
+	MOV	BX, WEEKDAY
+	MUL	BX
+	MOV	BX, 2
+	MUL	BX
+	MOV	WEEKDAY_OT, AX
+
+	; Weekend OT = WAGES * weekend_hours * 3
+	MOV	AX, WAGES
+	MOV	BX, WEEKEND
+	MUL	BX
+	MOV	BX, 3
+	MUL	BX
+	MOV	WEEKEND_OT, AX
+
+	; Holiday OT = WAGES * holiday_hours * 4
+	MOV	AX, WAGES
+	MOV	BX, HOLIDAYS
+	MUL	BX
+	MOV	BX, 4
+	MUL	BX
+	MOV	HOLIDAYS_OT, AX
+
+	; OVERTIME_TOTAL = sum of all OT categories
+	MOV	AX, WEEKDAY_OT
+	ADD	AX, WEEKEND_OT
+	ADD	AX, HOLIDAYS_OT
+	MOV	OVERTIME_TOTAL, AX
+
+	JMP	CALCULATION        ; Jump to gross salary calculation
 
 ; ---------------- Repeat/Exit Prompt ----------------
 REPEAT2:
