@@ -1,0 +1,30 @@
+# Generated DOS artifacts
+*.exe
+*.com
+*.obj
+*.o
+*.lst
+*.map
+*.lib
+build/
+output/
+
+# Assignment documents
+*.pdf
+*.docx
+*.xlsx
+*.zip
+
+# Local settings and temporary files
+.vscode/
+.idea/
+tmp/
+*.tmp
+*.bak
+*.log
+
+# External credentials
+.env
+.env.*
+*.pem
+*.key
